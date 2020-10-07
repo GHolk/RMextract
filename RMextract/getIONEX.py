@@ -21,9 +21,15 @@ the first nth column is same to origin input,
 and every following columns represent tec at that time.
 
 this python program originly writen
-by mevius on Tue Apr 24 11:46:57 2018,
+by mevius on Tue Apr 24 11:46:57 2018:
+<https://github.com/GHolk/RMextract/blob/master/RMextract/getIONEX.py>
+
 and is patched with ionex extract feature
-by gholk <gholk@ccns.ncku.edu.tw> 2020-10-07 .
+by gholk <gholk@ccns.ncku.edu.tw> 2020-10-07:
+<https://github.com/GHolk/RMextract/blob/executable-extract-tec/RMextract/getIONEX.py>
+
+license under GPL-3.0
+for citing, see <https://github.com/lofar-astron/RMextract/blob/master/README.md>
 
 @author: mevius gholk
 """
