@@ -831,4 +831,9 @@ if __name__ == '__main__':
     if len(sys.argv) < 3:
         help(__name__)
         exit(22)
-    main(sys.argv[:])
+    elif '--help' in sys.argv or '-h' in sys.argv:
+        help(__name__)
+        exit(0)
+    else:
+        main(sys.argv[:])
+
