@@ -4,17 +4,36 @@
 """
 Extract TEC values from an IONEX file given a specific time and geographic coordinate.
 
-Created on Tue Apr 24 11:46:57 2018
+usage:
+    python3 getIONEX.py station-latlon.tsv XXXX3650.19I [hour-of-day ...]
 
-@author: mevius
+station-latlon.tsv is a space saperated file.
+every row contain a station, columns are name, latitude, lontitude
+and other optional field.
+
+XXXX3650.19I is ionex format file.
+
+`[hour-of-day ...]` are list of time to interpolate for every station.
+if it is empty, then every epoch in ionex file is used.
+
+this program output to standard output, saperated with tab.
+the first nth column is same to origin input,
+and every following columns represent tec at that time.
+
+this python program originly writen
+by mevius on Tue Apr 24 11:46:57 2018,
+and is patched with ionex extract feature
+by gholk <gholk@ccns.ncku.edu.tw> 2020-10-07 .
+
+@author: mevius gholk
 """
 import numpy as np
 import datetime
 import scipy.ndimage.filters as myfilter
 import logging
 import os
-import ftplib
-import socket
+# import ftplib
+# import socket
 
 
 logging.basicConfig(level=logging.ERROR)
@@ -712,8 +731,8 @@ def get_TEC_data(times, lonlatpp, server, prefix, outpath, use_filter=None,earth
     '''
     
     date_parms = PosTools.obtain_observation_year_month_day_fraction(times[0])
-    ionexf=get_IONEX_file(time=date_parms,server=server,prefix=prefix,outpath=outpath)
-    tecinfo=ionex.readTEC(ionexf,use_filter=use_filter)
+    ionexf=_get_IONEX_file(time=date_parms,server=server,prefix=prefix,outpath=outpath)
+    tecinfo=readTEC(ionexf,use_filter=use_filter)
     latpp = lonlatpp[:, 1]
     lonpp = lonlatpp[:, 0]
     if latpp.shape == times.shape:
@@ -728,3 +747,82 @@ def get_TEC_data(times, lonlatpp, server, prefix, outpath, use_filter=None,earth
                                              apply_earth_rotation=earth_rot))
     return np.array(vtec)
             
+def get_TEC_data_from_file(times, lonlatpp, filename, use_filter=None,earth_rot=0.):
+    '''Returns vtec for given times and lonlats.
+    If times has the same length as the first axis  of lonlatpp, 
+    it is assumed that there is a one to one correspondence.
+    Else vTEC is calculated for every combination of lonlatpp and times.
+    
+    Args:
+        times (np.array) : float of time in MJD seconds
+        lonlatpp (np.array) : array of time X 2 ,longitude lattitude of 
+                              piercepoints
+    Returns:
+        np.array : array with shape times.shape x lonlatpp.shape[0], unless both
+                   are equal
+    '''
+    
+    tecinfo=readTEC(filename,use_filter=use_filter)
+    latpp = lonlatpp[:, 1]
+    lonpp = lonlatpp[:, 0]
+    if latpp.shape == times.shape:
+        vtec = compute_tec_interpol(times,latpp,lonpp,tecinfo=tecinfo,apply_earth_rotation=earth_rot)
+    else:
+        if len(times) == 0:
+            times = tecinfo[4]
+        
+        vtec=[]
+        for itime in range(times.shape[0]):
+            vtec.append(compute_tec_interpol(times[itime]*np.ones_like(latpp),
+                                             latpp,
+                                             lonpp,
+                                             tecinfo=tecinfo,
+                                             apply_earth_rotation=earth_rot))
+    return np.array(vtec)
+            
+def test():
+    # time = np.array([[3.5],[6]])
+    # lonlat=np.array([[120.3573, 22.8033], [121.4421,24.9977 ]])
+    # return get_TEC_data_from_file(time, lonlat, 'TWRR363D.19I')
+    return station_file_join('TGM2019LL.TXT', 'TWRR363D.19I', np.array([3,3.2,3.5,3.8]))
+
+def station_file_parse(filename):
+    station = []
+    point = []
+    with open(filename, "r") as string:
+        for line in string:
+            field = line.split()
+            try:
+                p = [float(x) for x in field[1:]]
+                assert len(p) == 3, "less then 3 field"
+            except:
+                logging.warning("cannot parse line: %s" % line)
+                continue
+
+            station.append(field[0])
+            point.append(p)
+
+    return (station, np.array(point))
+
+def station_file_join(station_file, ionex_file, time):
+    station_data = station_file_parse(station_file)
+    point_list = np.array(station_data[1])[:, [1,0]]
+    tec = get_TEC_data_from_file(time, point_list, ionex_file)
+    join = np.concatenate((station_data[1], tec.T), axis=1)
+    return (station_data[0], join)
+
+def station_file_format(station_list, join):
+    table = np.concatenate((np.array([station_list]).T, join), axis=1)
+    return '\n'.join(('\t'.join(row) for row in table))
+
+def main(argv):
+    time = np.array([float(t) for t in argv[3:]])
+    (station_list, join) = station_file_join(argv[1], argv[2], time)
+    print(station_file_format(station_list, join))
+
+if __name__ == '__main__':
+    import sys
+    if len(sys.argv) < 3:
+        help(__name__)
+        exit(22)
+    main(sys.argv[:])
